@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Timetable</title>
+<meta name="theme-color" content="#f4f4f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  :root {
+    --bg: #f4f4f5;
+    --bg-elevated: #ffffff;
+    --bg-grouped: #ffffff;
+    --label: #0a0a0b;
+    --label-2: rgba(40,40,45,0.75);
+    --label-3: rgba(50,50,55,0.32);
+    --separator: rgba(50,50,55,0.12);
+    --fill: rgba(120,120,128,0.12);
+    --fill-2: rgba(120,120,128,0.22);
+    --blue: #007aff;
+    --on-accent: #ffffff;
+    --red: #ff3b30;
+    --shadow: 0 1px 2px rgba(0,0,0,0.03), 0 10px 30px rgba(0,0,0,0.07);
+    --radius: 22px;
+    --header-blur: rgba(244,244,245,0.72);
+    --glass-border: rgba(255,255,255,0.65);
+    --glass-edge: inset 0 1px 0 rgba(255,255,255,0.7);
+    --sheet-bg: rgba(255,255,255,0.82);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --bg-elevated: #1c1c1e;
+      --bg-grouped: #161618;
+      --label: #ffffff;
+      --label-2: rgba(235,235,245,0.75);
+      --label-3: rgba(235,235,245,0.32);
+      --separator: rgba(84,84,88,0.5);
+      --fill: rgba(120,120,128,0.24);
+      --fill-2: rgba(120,120,128,0.38);
+      --blue: #0a84ff;
+      --on-accent: #ffffff;
+      --red: #ff453a;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.4);
+      --header-blur: rgba(0,0,0,0.68);
+      --glass-border: rgba(255,255,255,0.1);
+      --glass-edge: inset 0 1px 0 rgba(255,255,255,0.09);
+      --sheet-bg: rgba(28,28,30,0.8);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { html { color-scheme: dark; } }
+  option { background: var(--bg-elevated); color: var(--label); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--label);
+    min-height: 100vh;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .app { max-width: 900px; margin: 0 auto; padding: 0 16px calc(40px + env(safe-area-inset-bottom)); }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: var(--header-blur);
+    margin: 0 -16px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 0.5px solid var(--separator);
+  }
+  .header-inner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .app-title { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; flex: 1; }
+  .app-title small { display: block; font-size: 12px; font-weight: 500; color: var(--label-2); letter-spacing: 0; }
+
+  .segmented {
+    display: flex; background: var(--fill); border-radius: 12px; padding: 2.5px; user-select: none;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
+  .segmented button {
+    appearance: none; border: 0; background: transparent; color: var(--label);
+    font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 9.5px; cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .segmented button.active { background: var(--bg-elevated); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+  @media (prefers-color-scheme: dark) {
+    .segmented button.active { background: #636366; }
+  }
+  /* Phone layout (iPhone 17 Pro ≈ 402pt wide): title row + full-width tabs */
+  @media (max-width: 560px) {
+    .header-inner { flex-wrap: wrap; }
+    .app-title { font-size: 20px; }
+    .segmented { order: 3; width: 100%; margin-top: 9px; }
+    .segmented button { flex: 1; padding: 8px 0; font-size: 15px; }
+  }
+
+  .icon-btn {
+    appearance: none; border: 0; background: var(--fill); color: var(--blue);
+    width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .icon-btn:active { background: var(--fill-2); }
+
+  /* ---------- Today view ---------- */
+  .today-date { margin: 22px 4px 4px; font-size: 13.5px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.8px; }
+  .today-greeting { margin: 0 4px 18px; font-size: 35px; font-weight: 800; letter-spacing: -0.7px; }
+
+  .next-card {
+    border-radius: var(--radius); padding: 20px 20px 18px; margin-bottom: 24px; color: #ffffff;
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.3);
+    border: 1px solid rgba(255,255,255,0.25);
+    position: relative; overflow: hidden;
+  }
+  .next-card .kicker { font-size: 12.5px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.9px; opacity: 0.8; margin-bottom: 7px; }
+  .next-card .title { font-size: 24px; font-weight: 750; letter-spacing: -0.4px; margin-bottom: 2px; }
+  .next-card .sub { font-size: 16px; opacity: 0.85; }
+  .next-card .meta { display: flex; gap: 16px; margin-top: 14px; font-size: 16px; font-weight: 700; flex-wrap: wrap; }
+  .next-card .meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .next-card .meta svg { width: 15px; height: 15px; opacity: 0.85; }
+  .next-card .countdown {
+    position: absolute; top: 18px; right: 18px; background: rgba(255,255,255,0.2);
+    border-radius: 999px; padding: 5px 13px; font-size: 14px; font-weight: 750;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+
+  .section-title { font-size: 22px; font-weight: 750; letter-spacing: -0.4px; margin: 28px 4px 12px; }
+  .section-title .count { color: var(--label-2); font-weight: 600; font-size: 16px; margin-left: 7px; }
+
+  .gap-row {
+    display: flex; align-items: center; gap: 12px; color: var(--label-2);
+    font-size: 14.5px; font-weight: 650; padding: 1px 8px; letter-spacing: 0.1px;
+  }
+  .gap-row::before, .gap-row::after { content: ""; flex: 1; border-top: 2px dashed var(--separator); }
+
+  .class-list { display: flex; flex-direction: column; gap: 12px; }
+  .class-row {
+    display: flex; align-items: stretch; gap: 15px; background: var(--bg-grouped);
+    border-radius: 20px; padding: 17px 17px; cursor: pointer;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow), var(--glass-edge);
+    transition: transform 0.12s ease;
+  }
+  .class-row:active { transform: scale(0.985); }
+  .class-row.past { opacity: 0.62; }
+  .class-row .bar { width: 5px; border-radius: 3px; flex-shrink: 0; }
+  .class-row .times { width: 94px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; }
+  .class-row .times .start { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .class-row .times .end { font-size: 15px; color: var(--label-2); font-weight: 550; font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .class-row .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .class-row .info .name {
+    font-size: 18px; font-weight: 720; letter-spacing: -0.35px; line-height: 1.22;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .class-row .info .room { font-size: 16px; font-weight: 700; margin-top: 4px; display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .class-row .info .room svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .class-row .info .detail { font-size: 14.5px; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+  .class-row .right { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 8px; flex-shrink: 0; }
+  .class-row .badge { font-size: 13px; font-weight: 700; padding: 4px 11px; border-radius: 999px; }
+  .class-row .starts { font-size: 13.5px; font-weight: 750; color: var(--label-2); font-variant-numeric: tabular-nums; }
+  .class-row .starts.soon { color: var(--red); }
+  .class-row .starts.on { color: #30d158; }
+  .class-row .starts.on::before { content: "●"; font-size: 9px; margin-right: 4px; vertical-align: 1.5px; }
+
+  .empty-day {
+    background: var(--bg-grouped); border-radius: var(--radius); padding: 36px 20px; text-align: center;
+    box-shadow: var(--shadow), var(--glass-edge); border: 1px solid var(--glass-border);
+    color: var(--label-2); font-size: 16px;
+  }
+  .empty-day .big { font-size: 34px; margin-bottom: 8px; }
+
+  /* ---------- Week view ---------- */
+  .week-nav { display: flex; align-items: center; gap: 10px; margin: 20px 2px 12px; }
+  .week-nav .label { flex: 1; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
+  .week-nav .label small { display: block; font-size: 12.5px; font-weight: 500; color: var(--label-2); }
+  .week-nav button {
+    appearance: none; border: 0; background: var(--fill); color: var(--blue); font: inherit;
+    font-weight: 600; font-size: 14px; border-radius: 999px; padding: 6px 14px; cursor: pointer;
+  }
+  .week-nav button:active { background: var(--fill-2); }
+  .week-nav .arrow { width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+
+  .grid-card { background: var(--bg-grouped); border-radius: var(--radius); box-shadow: var(--shadow), var(--glass-edge); border: 1px solid var(--glass-border); overflow: hidden; }
+  .grid-scroll { overflow-x: auto; }
+  .grid { display: grid; min-width: 640px; position: relative; }
+  .grid .corner { position: sticky; left: 0; }
+  .day-head {
+    text-align: center; padding: 10px 4px 8px; font-size: 12.5px; font-weight: 600; color: var(--label-2);
+    border-bottom: 0.5px solid var(--separator);
+  }
+  .day-head .num { display: block; font-size: 17px; font-weight: 700; color: var(--label); margin-top: 1px; }
+  .day-head.today-col .num {
+    background: var(--red); color: #fff; width: 28px; height: 28px; line-height: 28px; border-radius: 50%;
+    margin: 1px auto 0;
+  }
+  .time-cell {
+    font-size: 12px; font-weight: 550; color: var(--label-3); text-align: right; padding-right: 7px;
+    transform: translateY(-7px); font-variant-numeric: tabular-nums;
+  }
+  .day-col { position: relative; border-left: 0.5px solid var(--separator); }
+  .hour-line { position: absolute; left: 0; right: 0; border-top: 0.5px solid var(--separator); }
+  .event-block {
+    position: absolute; border-radius: 10px; padding: 7px 9px; overflow: hidden; cursor: pointer;
+    font-size: 13.5px; line-height: 1.28; border-left: 4px solid; transition: transform 0.1s ease;
+  }
+  .event-block:active { transform: scale(0.97); }
+  .event-block .t { font-weight: 720; letter-spacing: -0.2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .event-block .tm { font-weight: 650; font-size: 12px; opacity: 0.85; font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .event-block .l { opacity: 0.95; font-weight: 650; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .now-line { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 5; pointer-events: none; }
+  .now-line::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+
+  /* ---------- Assignments ---------- */
+  .add-card {
+    background: var(--bg-grouped); border-radius: var(--radius);
+    box-shadow: var(--shadow), var(--glass-edge); border: 1px solid var(--glass-border);
+    padding: 16px 16px 14px; margin-bottom: 22px;
+  }
+  .add-card .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .add-card .fields .full { grid-column: 1 / -1; }
+  .add-card input, .add-card select {
+    appearance: none; -webkit-appearance: none; font: inherit; font-size: 16.5px;
+    background: var(--fill); color: var(--label); border-radius: 15px; padding: 12px 15px; width: 100%;
+    outline: none; border: 1px solid var(--glass-border); box-shadow: var(--glass-edge);
+    transition: box-shadow 0.15s ease;
+  }
+  .add-card input:focus, .add-card select:focus { box-shadow: var(--glass-edge), 0 0 0 3.5px rgba(10,132,255,0.28); }
+  .add-card input::placeholder { color: var(--label-3); }
+  .add-card select { background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  .add-card .add-btn {
+    margin-top: 12px; width: 100%; appearance: none; border: 0; font: inherit; font-size: 17px; font-weight: 700;
+    background: var(--blue); color: var(--on-accent); border-radius: 12px; padding: 14px; cursor: pointer;
+  }
+  .add-card .add-btn:active { opacity: 0.75; }
+
+  .task-row {
+    display: flex; align-items: center; gap: 13px; background: var(--bg-grouped);
+    border-radius: 20px; padding: 15px 16px;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow), var(--glass-edge);
+  }
+  .task-row .check {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--label-3); flex-shrink: 0;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; background: none; transition: all 0.15s ease;
+  }
+  .task-row .check svg { width: 14px; height: 14px; opacity: 0; }
+  .task-row.done .check { background: #30d158; border-color: #30d158; color: #fff; }
+  .task-row.done .check svg { opacity: 1; }
+  .task-row .bar { width: 5px; border-radius: 3px; align-self: stretch; flex-shrink: 0; }
+  .task-row .info { flex: 1; min-width: 0; }
+  .task-row .info .name { font-size: 17.5px; font-weight: 720; letter-spacing: -0.25px; }
+  .task-row.done .info .name { text-decoration: line-through; color: var(--label-2); }
+  .task-row .info .sub { font-size: 14.5px; color: var(--label-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-row .right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+  .due-chip { font-size: 13px; font-weight: 750; padding: 4px 11px; border-radius: 999px; background: var(--fill); color: var(--label-2); white-space: nowrap; }
+  .due-chip.today { background: rgba(255,59,48,0.14); color: var(--red); }
+  .due-chip.overdue { background: var(--red); color: #fff; }
+  .due-chip.soon { background: rgba(255,159,10,0.16); color: #e8830a; }
+  .due-chip.week { background: rgba(10,132,255,0.13); color: var(--blue); }
+  .task-row .del {
+    appearance: none; border: 0; background: none; color: var(--label-3); cursor: pointer;
+    font-size: 12px; font-weight: 600; padding: 2px 4px;
+  }
+  .task-row .del:active { color: var(--red); }
+  .subject-head {
+    display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 750; letter-spacing: -0.25px;
+    margin: 22px 0 10px; padding: 11px 15px; border-radius: 14px;
+  }
+  .subject-head .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+  .subject-head .n { margin-left: auto; font-weight: 750; font-size: 14px; background: rgba(255,255,255,0.55); border-radius: 999px; padding: 2px 10px; }
+  @media (prefers-color-scheme: dark) { .subject-head .n { background: rgba(0,0,0,0.28); } }
+  .due-mini { font-size: 12.5px; font-weight: 750; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .sheet .tasks-title { font-size: 14px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.6px; color: var(--label-2); margin: 16px 0 4px; }
+  .sheet .task-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 0.5px solid var(--separator); font-size: 15.5px; }
+  .sheet .task-line .t { font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet .task-line .t small { display: block; font-weight: 500; color: var(--label-2); font-size: 13px; }
+  .done-toggle {
+    appearance: none; border: 0; background: none; color: var(--label-2); font: inherit; font-size: 14px;
+    font-weight: 600; cursor: pointer; padding: 4px;
+  }
+
+  /* ---------- Empty state / onboarding ---------- */
+  .onboard { margin-top: 34px; text-align: center; }
+  .onboard .app-icon {
+    width: 84px; height: 84px; margin: 0 auto 18px; border-radius: 20px;
+    background: linear-gradient(160deg, #0a84ff, #5e5ce6); display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 30px rgba(10,132,255,0.35);
+  }
+  .onboard .app-icon svg { width: 44px; height: 44px; }
+  .onboard h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .onboard p.lede { color: var(--label-2); font-size: 16px; max-width: 420px; margin: 0 auto 26px; }
+  .steps { text-align: left; max-width: 460px; margin: 0 auto 22px; background: var(--bg-grouped); border-radius: var(--radius); box-shadow: var(--shadow), var(--glass-edge); border: 1px solid var(--glass-border); overflow: hidden; }
+  .step { display: flex; gap: 14px; padding: 15px 18px; align-items: flex-start; }
+  .step + .step { border-top: 0.5px solid var(--separator); }
+  .step .n {
+    width: 26px; height: 26px; border-radius: 50%; background: var(--blue); color: #fff;
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+  }
+  .step .txt { font-size: 15px; }
+  .step .txt b { font-weight: 650; }
+  .step .txt .sub { color: var(--label-2); font-size: 13.5px; margin-top: 2px; }
+  .step a { color: var(--blue); text-decoration: none; font-weight: 600; }
+
+  .drop-zone {
+    max-width: 460px; margin: 0 auto; border: 2px dashed var(--label-3); border-radius: var(--radius);
+    padding: 30px 20px; color: var(--label-2); font-size: 15px; transition: all 0.15s ease;
+  }
+  .drop-zone.drag { border-color: var(--blue); background: rgba(10,132,255,0.08); color: var(--blue); }
+  .btn-row { display: flex; gap: 10px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+  .btn {
+    appearance: none; border: 0; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+    border-radius: 999px; padding: 12px 24px; transition: opacity 0.15s ease;
+  }
+  .btn:active { opacity: 0.7; }
+  .btn.primary { background: var(--blue); color: var(--on-accent); }
+  .btn.secondary { background: var(--fill); color: var(--blue); }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    background: var(--sheet-bg); border-radius: 28px 28px 0 0; width: 100%; max-width: 560px;
+    backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid var(--glass-border); border-bottom: 0;
+    padding: 10px 22px calc(28px + env(safe-area-inset-bottom));
+    max-height: 82vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    transform: translateY(30px); transition: transform 0.25s cubic-bezier(0.2,0.9,0.3,1);
+  }
+  .modal-backdrop.open .sheet { transform: translateY(0); }
+  .sheet .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--fill-2); margin: 4px auto 16px; }
+  .sheet .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; margin-bottom: 10px; }
+  .sheet h2 { font-size: 23px; font-weight: 750; letter-spacing: -0.4px; margin-bottom: 14px; }
+  .sheet .rows { border-top: 0.5px solid var(--separator); }
+  .sheet .row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 0.5px solid var(--separator); font-size: 15px; }
+  .sheet .row .k { color: var(--label-2); flex-shrink: 0; }
+  .sheet .row .v { font-weight: 550; text-align: right; }
+
+  /* toast */
+  .toast {
+    position: fixed; bottom: calc(28px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--sheet-bg); color: var(--label); box-shadow: var(--shadow);
+    backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px; padding: 11px 20px; font-size: 14.5px; font-weight: 600; z-index: 200;
+    opacity: 0; pointer-events: none; transition: all 0.25s ease; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .hidden { display: none !important; }
+  input[type=file] { display: none; }
+  footer { text-align: center; color: var(--label-3); font-size: 12.5px; margin-top: 40px; }
+  footer button { appearance: none; border: 0; background: none; color: var(--blue); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header id="header" class="hidden">
+    <div class="header-inner">
+      <div class="app-title">Timetable<small id="headerSub"></small></div>
+      <div class="segmented" id="segmented">
+        <button data-view="today" class="active">Today</button>
+        <button data-view="week">Week</button>
+        <button data-view="tasks">Tasks</button>
+      </div>
+      <button class="icon-btn" id="uploadBtn" title="Replace timetable">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <footer id="footer" class="hidden">
+    Synced from UTS MyTimetable · <span id="evCount"></span> classes ·
+    <button id="clearBtn">Remove timetable</button>
+  </footer>
+</div>
+
+<input type="file" id="fileInput" accept=".ics,text/calendar">
+<div class="modal-backdrop" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ================= Storage (safe wrapper — falls back to memory) ================= */
+const store = (() => {
+  let mem = {};
+  let ok = false;
+  try { const t = "__tt_test__"; localStorage.setItem(t, "1"); localStorage.removeItem(t); ok = true; } catch (e) { ok = false; }
+  return {
+    get(k) { try { return ok ? localStorage.getItem(k) : (mem[k] ?? null); } catch (e) { return mem[k] ?? null; } },
+    set(k, v) { try { if (ok) localStorage.setItem(k, v); } catch (e) {} mem[k] = v; },
+    del(k) { try { if (ok) localStorage.removeItem(k); } catch (e) {} delete mem[k]; }
+  };
+})();
+const STORE_KEY = "uts-timetable-ics-v1";
+
+/* ================= ICS parsing ================= */
+function unfold(text) {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n[ \t]/g, "");
+}
+function parseProps(block) {
+  const props = [];
+  for (const line of block.split("\n")) {
+    const idx = line.indexOf(":");
+    if (idx < 0) continue;
+    const left = line.slice(0, idx);
+    const value = line.slice(idx + 1);
+    const parts = left.split(";");
+    const name = parts[0].toUpperCase();
+    const params = {};
+    for (let i = 1; i < parts.length; i++) {
+      const eq = parts[i].indexOf("=");
+      if (eq > 0) params[parts[i].slice(0, eq).toUpperCase()] = parts[i].slice(eq + 1);
+    }
+    props.push({ name, params, value });
+  }
+  return props;
+}
+function parseICSDate(val) {
+  // Returns a JS Date. Handles YYYYMMDD, YYYYMMDDTHHMMSS, YYYYMMDDTHHMMSSZ.
+  let m = val.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/);
+  if (m) {
+    const [, y, mo, d, h, mi, s, z] = m;
+    if (z === "Z") return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s));
+    return new Date(+y, +mo - 1, +d, +h, +mi, +s);
+  }
+  m = val.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  const dt = new Date(val);
+  return isNaN(dt) ? null : dt;
+}
+function unescapeText(v) {
+  return v.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\");
+}
+const BYDAY_MAP = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 0 };
+
+function expandRRule(rruleStr, dtstart, durationMs, exdates) {
+  const rule = {};
+  for (const part of rruleStr.split(";")) {
+    const [k, v] = part.split("=");
+    if (k) rule[k.toUpperCase()] = v;
+  }
+  const freq = rule.FREQ;
+  const interval = parseInt(rule.INTERVAL || "1", 10);
+  const count = rule.COUNT ? parseInt(rule.COUNT, 10) : null;
+  const until = rule.UNTIL ? parseICSDate(rule.UNTIL) : null;
+  const results = [];
+  const push = (d) => {
+    const key = d.getTime();
+    if (!exdates.has(key)) results.push(new Date(d));
+  };
+  const MAX = 400;
+
+  if (freq === "WEEKLY") {
+    let days = rule.BYDAY ? rule.BYDAY.split(",").map(s => BYDAY_MAP[s.trim().slice(-2)]).filter(d => d !== undefined) : [dtstart.getDay()];
+    days = [...new Set(days)].sort((a, b) => a - b);
+    // Start of the week (Sunday) containing dtstart
+    const weekStart = new Date(dtstart);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    let produced = 0;
+    outer:
+    for (let w = 0; w < 80; w++) {
+      for (const dow of days) {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + w * 7 * interval + dow);
+        d.setHours(dtstart.getHours(), dtstart.getMinutes(), dtstart.getSeconds(), 0);
+        if (d < dtstart) continue;
+        if (until && d > until) break outer;
+        push(d);
+        produced++;
+        if (count && produced >= count) break outer;
+        if (results.length >= MAX) break outer;
+      }
+      if (!until && !count && w > 60) break; // safety for open-ended rules
+    }
+  } else if (freq === "DAILY") {
+    let d = new Date(dtstart), produced = 0;
+    while (produced < (count || 200) && results.length < MAX) {
+      if (until && d > until) break;
+      push(d);
+      produced++;
+      d = new Date(d);
+      d.setDate(d.getDate() + interval);
+      if (!until && !count && produced > 200) break;
+    }
+  } else {
+    results.push(new Date(dtstart));
+  }
+  return results;
+}
+
+/* UTS summaries look like "31266 Introduction to Information Systems, Lecture, 01"
+   or activity-code style "31266_SPR_U_1_S, Tut, 02". Make them pretty but stay generic. */
+const ACTIVITY_NAMES = {
+  lec: "Lecture", lecture: "Lecture", tut: "Tutorial", tutorial: "Tutorial",
+  wks: "Workshop", workshop: "Workshop", lab: "Lab", cmp: "Computer Lab",
+  prc: "Practical", practical: "Practical", sem: "Seminar", seminar: "Seminar",
+  stu: "Studio", studio: "Studio", drp: "Drop-in", onl: "Online", cls: "Class",
+  fld: "Field Trip", exm: "Exam", test: "Test"
+};
+function prettyActivity(raw) {
+  if (!raw) return "";
+  const key = raw.trim().toLowerCase().replace(/[0-9\s]+$/, "");
+  return ACTIVITY_NAMES[key] || (raw.trim().charAt(0).toUpperCase() + raw.trim().slice(1));
+}
+function parseSummary(summary, description) {
+  let s = unescapeText(summary || "").trim();
+  let code = null, name = s, activity = "";
+  const parts = s.split(",").map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    name = parts[0];
+    activity = prettyActivity(parts[1]);
+  }
+  let m = name.match(/^(\d{5}[A-Za-z]?)[\s_\-]+(.*)$/);
+  if (m) {
+    code = m[1];
+    const rest = m[2].replace(/_/g, " ").trim();
+    // If the rest looks like an activity code blob (e.g. "SPR U 1 S"), drop it
+    name = /^[A-Z]{2,4}(\s|$)/.test(rest) && rest.length <= 12 ? code : rest;
+  }
+  // Try to find a nicer name in the description if we only have a code
+  if (name === code && description) {
+    const d = unescapeText(description);
+    const dm = d.match(/(?:Subject|Description|Title)\s*:\s*([^\n]+)/i);
+    if (dm) name = dm[1].trim();
+  }
+  if (!activity && description) {
+    const d = unescapeText(description);
+    const am = d.match(/(?:Activity|Type)\s*:\s*([^\n,]+)/i);
+    if (am) activity = prettyActivity(am[1]);
+  }
+  return { code, name, activity };
+}
+
+function parseICS(text) {
+  const body = unfold(text);
+  const events = [];
+  const veventRe = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/g;
+  let match;
+  while ((match = veventRe.exec(body)) !== null) {
+    const props = parseProps(match[1]);
+    const get = (n) => props.find(p => p.name === n);
+    const dtstartProp = get("DTSTART");
+    if (!dtstartProp) continue;
+    const dtstart = parseICSDate(dtstartProp.value);
+    if (!dtstart) continue;
+    const dtendProp = get("DTEND");
+    let dtend = dtendProp ? parseICSDate(dtendProp.value) : null;
+    if (!dtend) {
+      const durProp = get("DURATION");
+      if (durProp) {
+        const dm = durProp.value.match(/PT?(?:(\d+)H)?(?:(\d+)M)?/i);
+        const ms = ((+(dm?.[1] || 0)) * 60 + (+(dm?.[2] || 0))) * 60000;
+        dtend = new Date(dtstart.getTime() + (ms || 3600000));
+      } else dtend = new Date(dtstart.getTime() + 3600000);
+    }
+    const durationMs = dtend - dtstart;
+    const summary = get("SUMMARY")?.value || "Class";
+    const location = unescapeText(get("LOCATION")?.value || "").trim();
+    const description = get("DESCRIPTION")?.value || "";
+    const rrule = get("RRULE");
+    const exdates = new Set();
+    for (const p of props.filter(p => p.name === "EXDATE")) {
+      for (const v of p.value.split(",")) {
+        const d = parseICSDate(v.trim());
+        if (d) exdates.add(d.getTime());
+      }
+    }
+    const meta = parseSummary(summary, description);
+    const starts = rrule ? expandRRule(rrule.value, dtstart, durationMs, exdates) : [dtstart];
+    for (const st of starts) {
+      events.push({
+        start: st.getTime(),
+        end: st.getTime() + durationMs,
+        code: meta.code,
+        name: meta.name,
+        activity: meta.activity,
+        location,
+        raw: unescapeText(summary)
+      });
+    }
+  }
+  events.sort((a, b) => a.start - b.start);
+  return events;
+}
+
+/* ================= Colors ================= */
+/* c = vivid (bars/badges), deep = high-contrast text on light tints, bgL/bgD = card tints */
+const PALETTE = [
+  { c: "#0a84ff", deep: "#0053b3", bgL: "rgba(10,132,255,0.13)", bgD: "rgba(10,132,255,0.28)", grad: "linear-gradient(140deg,#0a84ff,#0060df)" },
+  { c: "#bf5af2", deep: "#7a1fa6", bgL: "rgba(191,90,242,0.13)", bgD: "rgba(191,90,242,0.28)", grad: "linear-gradient(140deg,#bf5af2,#8944ab)" },
+  { c: "#ff9f0a", deep: "#9e5f00", bgL: "rgba(255,159,10,0.15)", bgD: "rgba(255,159,10,0.28)", grad: "linear-gradient(140deg,#ff9f0a,#e8830a)" },
+  { c: "#30d158", deep: "#166e33", bgL: "rgba(48,209,88,0.14)",  bgD: "rgba(48,209,88,0.28)",  grad: "linear-gradient(140deg,#30d158,#1fa946)" },
+  { c: "#ff375f", deep: "#b0173a", bgL: "rgba(255,55,95,0.12)",  bgD: "rgba(255,55,95,0.28)",  grad: "linear-gradient(140deg,#ff375f,#d42a4d)" },
+  { c: "#64d2ff", deep: "#006a99", bgL: "rgba(100,210,255,0.15)",bgD: "rgba(100,210,255,0.28)",grad: "linear-gradient(140deg,#40b8e8,#2196c9)" },
+  { c: "#5e5ce6", deep: "#3230b8", bgL: "rgba(94,92,230,0.13)",  bgD: "rgba(94,92,230,0.30)",  grad: "linear-gradient(140deg,#5e5ce6,#4644c9)" },
+  { c: "#ffd60a", deep: "#7d6600", bgL: "rgba(255,214,10,0.17)", bgD: "rgba(255,214,10,0.28)", grad: "linear-gradient(140deg,#eec207,#d4a900)" }
+];
+let colorMap = {};
+function assignColors(events) {
+  colorMap = {};
+  let i = 0;
+  for (const ev of events) {
+    const key = ev.code || ev.name;
+    if (!(key in colorMap)) colorMap[key] = PALETTE[i++ % PALETTE.length];
+  }
+}
+const colorOf = (ev) => colorMap[ev.code || ev.name] || PALETTE[0];
+function textOn(hex) { // black or white text for a given background colour
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return "#fff";
+  const lum = 0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16);
+  return lum > 165 ? "#111113" : "#ffffff";
+}
+const isDark = () => window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const tint = (p) => isDark() ? p.bgD : p.bgL;
+const shade = (p) => isDark() ? (p.cD || p.c) : p.c; // subject shade for the current mode
+const textShade = (p) => isDark() ? (p.cD || p.c) : (p.deep || p.c); // high-contrast text colour
+
+/* ================= State & helpers ================= */
+let events = [];
+let view = "today";
+let weekOffset = 0;
+
+const fmtTime = (ts) => new Date(ts).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }).replace(" ", " ");
+const fmtDayLong = (d) => d.toLocaleDateString("en-AU", { weekday: "long" });
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+function startOfWeek(d) { // Monday
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = (x.getDay() + 6) % 7;
+  x.setDate(x.getDate() - day);
+  return x;
+}
+function eventsOn(day) {
+  return events.filter(e => sameDay(new Date(e.start), day));
+}
+function countdownText(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `in ${mins} min`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? `in ${h} h ${m} min` : `in ${h} h`;
+}
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/* ================= Rendering ================= */
+const main = document.getElementById("main");
+
+function render() {
+  const has = events.length > 0;
+  document.getElementById("header").classList.toggle("hidden", !has);
+  document.getElementById("footer").classList.toggle("hidden", !has);
+  if (!has) { renderOnboard(); return; }
+  document.getElementById("evCount").textContent = events.length;
+  const subjects = new Set(events.map(e => e.code || e.name));
+  document.getElementById("headerSub").textContent = `${subjects.size} subjects`;
+  document.querySelectorAll("#segmented button").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+  if (view === "today") renderToday();
+  else if (view === "week") renderWeek();
+  else renderTasks();
+}
+
+function renderOnboard() {
+  main.innerHTML = `
+    <div class="onboard">
+      <div class="app-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </div>
+      <h1>Your UTS timetable,<br>made readable</h1>
+      <p class="lede">Grab the calendar file from MyTimetable once — no more screenshotting Canvas.</p>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div class="txt"><b>Open <a href="https://mytimetable.uts.edu.au/" target="_blank" rel="noopener">MyTimetable</a></b><div class="sub">Log in with your UTS account.</div></div></div>
+        <div class="step"><div class="n">2</div><div class="txt"><b>Download the iCalendar file</b><div class="sub">Scroll to the bottom of the homepage and tap the iCalendar download link.</div></div></div>
+        <div class="step"><div class="n">3</div><div class="txt"><b>Drop the .ics file below</b><div class="sub">Everything stays on your device — nothing is uploaded anywhere.</div></div></div>
+      </div>
+      <div class="drop-zone" id="dropZone">Drag &amp; drop your .ics file here</div>
+      <div class="btn-row">
+        <button class="btn primary" id="chooseBtn">Choose file</button>
+        <button class="btn secondary" id="sampleBtn">Try with a sample</button>
+      </div>
+    </div>`;
+  document.getElementById("chooseBtn").onclick = () => document.getElementById("fileInput").click();
+  document.getElementById("sampleBtn").onclick = () => loadICS(SAMPLE_ICS, "Sample timetable loaded");
+  const dz = document.getElementById("dropZone");
+  ["dragenter", "dragover"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove("drag"); }));
+}
+
+function renderToday() {
+  const now = new Date();
+  const todays = eventsOn(now);
+  const upcoming = events.filter(e => e.end > now.getTime());
+  const next = todays.find(e => e.end > now.getTime()) || upcoming[0];
+
+  let html = `
+    <div class="today-date">${now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}</div>
+    <div class="today-greeting">${greeting(now, todays)}</div>`;
+
+  if (next) {
+    const p = colorOf(next);
+    const nd = new Date(next.start);
+    const isNow = next.start <= now.getTime();
+    const dayLabel = sameDay(nd, now) ? "" : (nd.toLocaleDateString("en-AU", { weekday: "long" }) + " · ");
+    html += `
+      <div class="next-card" style="background:${p.grad}" data-ev="${events.indexOf(next)}">
+        <div class="countdown">${isNow ? "Now" : countdownText(next.start - now.getTime())}</div>
+        <div class="kicker">${isNow ? "Happening now" : "Up next"}</div>
+        <div class="title">${esc(next.name)}</div>
+        <div class="sub">${esc([next.activity, next.code].filter(Boolean).join(" · "))}</div>
+        <div class="meta">
+          <span>${CLOCK_SVG}${dayLabel}${fmtTime(next.start)} – ${fmtTime(next.end)}</span>
+          ${next.location ? `<span>${PIN_SVG}${esc(next.location)}</span>` : ""}
+        </div>
+      </div>`;
+  }
+
+  html += `<div class="section-title">Today${todays.length ? `<span class="count">${todays.length} ${todays.length === 1 ? "class" : "classes"}</span>` : ""}</div>`;
+  html += todays.length ? classListHTML(todays, now) : `<div class="empty-day"><div class="big">☀️</div>No classes today — enjoy it.</div>`;
+
+  // Tomorrow preview
+  const tmr = new Date(now); tmr.setDate(tmr.getDate() + 1);
+  const tmrs = eventsOn(tmr);
+  if (tmrs.length) {
+    html += `<div class="section-title">Tomorrow<span class="count">${tmrs.length} ${tmrs.length === 1 ? "class" : "classes"}</span></div>`;
+    html += classListHTML(tmrs, null);
+  }
+
+  // Assignments due soon
+  const dueSoon = tasks.filter(t => !t.done).sort((a, b) => (a.due || Infinity) - (b.due || Infinity)).slice(0, 3);
+  if (dueSoon.length) {
+    html += `<div class="section-title">Due soon</div><div class="class-list">${dueSoon.map(t => taskRowHTML(t)).join("")}</div>`;
+  }
+  main.innerHTML = html;
+  bindEventClicks();
+  bindTaskClicks();
+}
+
+function greeting(now, todays) {
+  const h = now.getHours();
+  const t = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return t;
+}
+
+const PIN_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+const CLOCK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>`;
+
+function gapText(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins} min break`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? `${h} h ${m} min break` : `${h} h break`;
+}
+
+function classListHTML(list, now) {
+  const parts = [];
+  list.forEach((ev, i) => {
+    // Gap indicator between consecutive classes
+    if (i > 0) {
+      const gap = ev.start - list[i - 1].end;
+      if (gap >= 10 * 60000) parts.push(`<div class="gap-row">${gapText(gap)}</div>`);
+      else if (gap < 60000) parts.push(`<div class="gap-row">back to back</div>`);
+    }
+    const p = colorOf(ev);
+    const past = now && ev.end < now.getTime();
+    const ongoing = now && ev.start <= now.getTime() && ev.end > now.getTime();
+    let chip = "";
+    if (now && !past) {
+      if (ongoing) chip = `<div class="starts on">On now</div>`;
+      else {
+        const diff = ev.start - now.getTime();
+        chip = `<div class="starts${diff < 3600000 ? " soon" : ""}">${countdownText(diff)}</div>`;
+      }
+    }
+    parts.push(`
+      <div class="class-row${past ? " past" : ""}" style="background:${tint(p)}" data-ev="${events.indexOf(ev)}">
+        <div class="bar" style="background:${shade(p)}"></div>
+        <div class="times"><span class="start">${fmtTime(ev.start)}</span><span class="end">${fmtTime(ev.end)}</span></div>
+        <div class="info">
+          <div class="name">${esc(ev.name)}</div>
+          ${ev.location
+            ? `<div class="room" style="color:${textShade(p)}">${PIN_SVG}${esc(ev.location)}</div>`
+            : (ev.code ? `<div class="detail">${esc(ev.code)}</div>` : "")}
+        </div>
+        <div class="right">
+          ${ev.activity ? `<div class="badge" style="background:${shade(p)};color:${textOn(shade(p))}">${esc(ev.activity)}</div>` : ""}
+          ${chip}
+          ${dueBadgeHTML(ev)}
+        </div>
+      </div>`);
+  });
+  // Day bounds: when this is "today", show when the day wraps up
+  if (list.length && now) {
+    parts.push(`<div class="gap-row">done by ${fmtTime(list[list.length - 1].end)}</div>`);
+  }
+  return `<div class="class-list">${parts.join("")}</div>`;
+}
+
+function renderWeek() {
+  const now = new Date();
+  const monday = startOfWeek(now);
+  monday.setDate(monday.getDate() + weekOffset * 7);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  const weekEvents = days.map(d => eventsOn(d));
+  const showWeekend = weekEvents[5].length > 0 || weekEvents[6].length > 0;
+  const nDays = showWeekend ? 7 : 5;
+
+  // Hour range
+  let minH = 9, maxH = 17;
+  for (let i = 0; i < nDays; i++) for (const e of weekEvents[i]) {
+    minH = Math.min(minH, new Date(e.start).getHours());
+    maxH = Math.max(maxH, new Date(e.end).getMinutes() > 0 ? new Date(e.end).getHours() + 1 : new Date(e.end).getHours());
+  }
+  minH = Math.max(6, minH); maxH = Math.min(23, Math.max(maxH, minH + 6));
+  const hourPx = 74;
+  const gridH = (maxH - minH) * hourPx;
+
+  const label = `${monday.getDate()}–${days[nDays-1].getDate()} ${days[nDays-1].toLocaleDateString("en-AU", { month: "short" })}`;
+  const total = weekEvents.slice(0, nDays).reduce((a, l) => a + l.length, 0);
+
+  let head = `<div class="corner" style="grid-row:1"></div>`;
+  for (let i = 0; i < nDays; i++) {
+    const d = days[i];
+    head += `<div class="day-head${sameDay(d, now) ? " today-col" : ""}" style="grid-row:1">${d.toLocaleDateString("en-AU",{weekday:"short"})}<span class="num">${d.getDate()}</span></div>`;
+  }
+
+  let timeCol = "";
+  for (let h = minH; h <= maxH; h++) {
+    timeCol += `<div class="time-cell" style="position:absolute;top:${(h-minH)*hourPx}px;right:0;width:100%">${h === minH ? "" : formatHour(h)}</div>`;
+  }
+
+  let cols = "";
+  for (let i = 0; i < nDays; i++) {
+    let lines = "";
+    for (let h = minH + 1; h <= maxH; h++) lines += `<div class="hour-line" style="top:${(h-minH)*hourPx}px"></div>`;
+    let blocks = "";
+    const laid = layoutDay(weekEvents[i]);
+    for (const { ev, col, cols: nc } of laid) {
+      const s = new Date(ev.start), e = new Date(ev.end);
+      const top = ((s.getHours() + s.getMinutes()/60) - minH) * hourPx;
+      const height = Math.max(30, ((e - s) / 3600000) * hourPx - 3);
+      const p = colorOf(ev);
+      const w = 100 / nc;
+      blocks += `
+        <div class="event-block" data-ev="${events.indexOf(ev)}"
+          style="top:${top + 1.5}px;height:${height}px;left:calc(${col * w}% + 2px);width:calc(${w}% - 5px);background:${tint(p)};border-color:${shade(p)};color:${isDark() ? "#fff" : "#1c1c1e"}">
+          <div class="t">${esc(shortName(ev))}</div>
+          ${height > 56 ? `<div class="tm">${fmtTime(ev.start)}</div>` : ""}
+          ${height > 74 && ev.location ? `<div class="l">${esc(ev.location)}</div>` : ""}
+        </div>`;
+    }
+    let nowLine = "";
+    if (sameDay(days[i], now)) {
+      const y = ((now.getHours() + now.getMinutes()/60) - minH) * hourPx;
+      if (y > 0 && y < gridH) nowLine = `<div class="now-line" style="top:${y}px"></div>`;
+    }
+    cols += `<div class="day-col" style="grid-row:2;height:${gridH}px">${lines}${blocks}${nowLine}</div>`;
+  }
+
+  main.innerHTML = `
+    <div class="week-nav">
+      <div class="label">${weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : weekOffset === -1 ? "Last week" : label}<small>${label} · ${total} ${total === 1 ? "class" : "classes"}</small></div>
+      <button class="arrow" id="prevWeek">‹</button>
+      ${weekOffset !== 0 ? `<button id="todayWeek">Today</button>` : ""}
+      <button class="arrow" id="nextWeek">›</button>
+    </div>
+    <div class="grid-card"><div class="grid-scroll">
+      <div class="grid" style="grid-template-columns:46px repeat(${nDays},1fr);grid-template-rows:auto ${gridH}px">
+        ${head}
+        <div style="grid-row:2;position:relative">${timeCol}</div>
+        ${cols}
+      </div>
+    </div></div>`;
+  document.getElementById("prevWeek").onclick = () => { weekOffset--; render(); };
+  document.getElementById("nextWeek").onclick = () => { weekOffset++; render(); };
+  const tw = document.getElementById("todayWeek");
+  if (tw) tw.onclick = () => { weekOffset = 0; render(); };
+  bindEventClicks();
+}
+
+function formatHour(h) {
+  const ampm = h < 12 ? "am" : "pm";
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh} ${ampm}`;
+}
+function shortName(ev) {
+  if (ev.name.length <= 26) return ev.name;
+  if (ev.code) return ev.code + (ev.activity ? " " + ev.activity : "");
+  return ev.name.slice(0, 24) + "…";
+}
+function layoutDay(list) {
+  // Simple overlap layout: cluster overlapping events, assign columns.
+  const sorted = [...list].sort((a, b) => a.start - b.start);
+  const out = [];
+  let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    if (!cluster.length) return;
+    const colEnds = [];
+    for (const ev of cluster) {
+      let col = colEnds.findIndex(end => end <= ev.start);
+      if (col === -1) { col = colEnds.length; colEnds.push(0); }
+      colEnds[col] = ev.end;
+      out.push({ ev, col, cols: 0, _cluster: cluster });
+    }
+    const n = colEnds.length;
+    for (const o of out) if (o._cluster === cluster) o.cols = n;
+    cluster = [];
+  };
+  for (const ev of sorted) {
+    if (cluster.length && ev.start >= clusterEnd) flush();
+    cluster.push(ev);
+    clusterEnd = Math.max(clusterEnd, ev.end);
+  }
+  flush();
+  return out;
+}
+
+/* ================= Assignments / tasks ================= */
+const TASKS_KEY = "uts-assignments-v1";
+let tasks = [];
+let showDone = false;
+function loadTasks() {
+  try { tasks = JSON.parse(store.get(TASKS_KEY) || "[]"); } catch (e) { tasks = []; }
+  if (!Array.isArray(tasks)) tasks = [];
+}
+function saveTasks() { store.set(TASKS_KEY, JSON.stringify(tasks)); }
+
+const GRAY = { c: "#8e8e93", bgL: "rgba(142,142,147,0.14)", bgD: "rgba(142,142,147,0.28)", grad: "" };
+function colorOfKey(key) { return colorMap[key] || GRAY; }
+function subjectList() {
+  const seen = new Map();
+  for (const ev of events) {
+    const key = ev.code || ev.name;
+    if (!seen.has(key)) seen.set(key, ev.name);
+  }
+  return [...seen.entries()].map(([key, name]) => ({ key, name }));
+}
+function dueInfo(t) {
+  if (!t.due) return { txt: "No due date", cls: "" };
+  const now = new Date();
+  const d = new Date(t.due);
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const due0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((due0 - today0) / 86400000);
+  if (days < 0) return { txt: days === -1 ? "Overdue by 1 day" : `Overdue by ${-days} days`, cls: "overdue" };
+  if (days === 0) return { txt: t.hasTime ? `Due today · ${fmtTime(t.due)}` : "Due today", cls: "today" };
+  if (days === 1) return { txt: "Due tomorrow", cls: "soon" };
+  if (days <= 7) return { txt: `${days} days left`, cls: "week" };
+  return { txt: `Due ${d.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}`, cls: "" };
+}
+function openTasksFor(key) {
+  return tasks.filter(t => !t.done && t.subject === key).sort((a, b) => (a.due || Infinity) - (b.due || Infinity));
+}
+function dueBadgeHTML(ev) {
+  const n = openTasksFor(ev.code || ev.name).length;
+  if (!n) return "";
+  const urgent = openTasksFor(ev.code || ev.name).some(t => ["today", "overdue"].includes(dueInfo(t).cls));
+  return `<div class="due-mini" style="${urgent ? "background:rgba(255,59,48,0.14);color:var(--red)" : "background:var(--fill);color:var(--label-2)"}">${n} due</div>`;
+}
+function taskRowHTML(t, hideSubject) {
+  const p = colorOfKey(t.subject);
+  const due = dueInfo(t);
+  const subName = (subjectList().find(s => s.key === t.subject) || {}).name || (t.subject === "general" ? "" : t.subject);
+  const sub = hideSubject ? (t.type || "") : [t.type, subName].filter(Boolean).join(" · ");
+  return `
+    <div class="task-row${t.done ? " done" : ""}" style="background:${t.done ? "" : tint(p)}" data-task="${t.id}">
+      <button class="check" style="${t.done ? "" : `border-color:${shade(p)}`}" data-toggle="${t.id}" title="Mark done">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
+      <div class="bar" style="background:${shade(p)}"></div>
+      <div class="info">
+        <div class="name">${esc(t.title)}</div>
+        ${sub ? `<div class="sub">${esc(sub)}</div>` : ""}
+      </div>
+      <div class="right">
+        <div class="due-chip ${t.done ? "" : due.cls}">${t.done ? "Done" : esc(due.txt)}</div>
+        <button class="del" data-del="${t.id}">Remove</button>
+      </div>
+    </div>`;
+}
+function groupedTasksHTML(open) {
+  // Group open tasks under their subject, in timetable order; General last.
+  const subs = subjectList();
+  const order = [...subs.map(s => s.key), "general"];
+  const groups = new Map();
+  for (const t of open) {
+    const k = order.includes(t.subject) ? t.subject : "general";
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(t);
+  }
+  let html = "";
+  for (const key of order) {
+    const list = groups.get(key);
+    if (!list || !list.length) continue;
+    const p = colorOfKey(key);
+    const name = key === "general" ? "General" : (subs.find(s => s.key === key) || {}).name || key;
+    html += `
+      <div class="subject-head" style="background:${tint(p)};color:${textShade(p)}"><span class="dot"></span><span style="color:var(--label)">${esc(name)}</span><span class="n">${list.length}</span></div>
+      <div class="class-list">${list.map(t => taskRowHTML(t, true)).join("")}</div>`;
+  }
+  return html;
+}
+
+function renderTasks() {
+  const subs = subjectList();
+  const open = tasks.filter(t => !t.done).sort((a, b) => (a.due || Infinity) - (b.due || Infinity));
+  const done = tasks.filter(t => t.done).sort((a, b) => (b.due || 0) - (a.due || 0));
+  main.innerHTML = `
+    <div class="section-title" style="margin-top:22px">Add something to track</div>
+    <div class="add-card">
+      <div class="fields">
+        <input class="full" id="tTitle" type="text" placeholder="e.g. Assignment 1 report" autocomplete="off">
+        <select id="tSubject">
+          <option value="general">General</option>
+          ${subs.map(s => `<option value="${esc(s.key)}">${esc(s.name)}</option>`).join("")}
+        </select>
+        <select id="tType">
+          <option>Assignment</option><option>Quiz</option><option>Exam</option>
+          <option>Module</option><option>Reading</option><option>Task</option>
+        </select>
+        <input id="tDate" type="date">
+        <input id="tTime" type="time">
+      </div>
+      <button class="add-btn" id="tAdd">Add</button>
+    </div>
+    <div class="section-title">To do${open.length ? `<span class="count">${open.length}</span>` : ""}</div>
+    ${open.length ? groupedTasksHTML(open) : `<div class="empty-day"><div class="big">🎯</div>Nothing tracked yet — add an assignment or module above.</div>`}
+    ${done.length ? `
+      <div class="section-title"><button class="done-toggle" id="doneToggle">${showDone ? "Hide" : "Show"} completed (${done.length})</button></div>
+      ${showDone ? `<div class="class-list">${done.map(t => taskRowHTML(t)).join("")}</div>` : ""}` : ""}
+  `;
+  document.getElementById("tAdd").onclick = () => {
+    const title = document.getElementById("tTitle").value.trim();
+    if (!title) { toast("Give it a name first"); document.getElementById("tTitle").focus(); return; }
+    const dateV = document.getElementById("tDate").value;
+    const timeV = document.getElementById("tTime").value;
+    let due = null, hasTime = false;
+    if (dateV) {
+      const [y, m, d] = dateV.split("-").map(Number);
+      if (timeV) { const [hh, mm] = timeV.split(":").map(Number); due = new Date(y, m - 1, d, hh, mm).getTime(); hasTime = true; }
+      else due = new Date(y, m - 1, d, 23, 59).getTime();
+    }
+    tasks.push({
+      id: "t" + Date.now() + Math.random().toString(36).slice(2, 6),
+      title,
+      subject: document.getElementById("tSubject").value,
+      type: document.getElementById("tType").value,
+      due, hasTime, done: false
+    });
+    saveTasks();
+    renderTasks();
+    toast("Added ✓");
+  };
+  const dt = document.getElementById("doneToggle");
+  if (dt) dt.onclick = () => { showDone = !showDone; renderTasks(); };
+  bindTaskClicks();
+}
+function bindTaskClicks() {
+  document.querySelectorAll("[data-toggle]").forEach(el => el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const t = tasks.find(x => x.id === el.dataset.toggle);
+    if (t) { t.done = !t.done; saveTasks(); render(); }
+  }));
+  document.querySelectorAll("[data-del]").forEach(el => el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tasks = tasks.filter(x => x.id !== el.dataset.del);
+    saveTasks(); render();
+  }));
+}
+
+function subjectTasksHTML(ev) {
+  const list = openTasksFor(ev.code || ev.name);
+  if (!list.length) return "";
+  return `
+    <div class="tasks-title">Due for this subject</div>
+    ${list.map(t => {
+      const due = dueInfo(t);
+      return `<div class="task-line">
+        <span class="t">${esc(t.title)}${t.type ? `<small>${esc(t.type)}</small>` : ""}</span>
+        <span class="due-chip ${due.cls}">${esc(due.txt)}</span>
+      </div>`;
+    }).join("")}`;
+}
+
+/* ================= Detail sheet ================= */
+function bindEventClicks() {
+  document.querySelectorAll("[data-ev]").forEach(el => {
+    el.addEventListener("click", () => showSheet(events[+el.dataset.ev]));
+  });
+}
+function showSheet(ev) {
+  if (!ev) return;
+  const p = colorOf(ev);
+  const d = new Date(ev.start);
+  document.getElementById("sheet").innerHTML = `
+    <div class="grabber"></div>
+    ${ev.activity ? `<span class="chip" style="background:${tint(p)};color:${textShade(p)}">${esc(ev.activity)}</span>` : ""}
+    <h2>${esc(ev.name)}</h2>
+    <div class="rows">
+      <div class="row"><span class="k">Day</span><span class="v">${d.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}</span></div>
+      <div class="row"><span class="k">Time</span><span class="v">${fmtTime(ev.start)} – ${fmtTime(ev.end)}</span></div>
+      ${ev.location ? `<div class="row"><span class="k">Room</span><span class="v">${esc(ev.location)}</span></div>` : ""}
+      ${ev.code ? `<div class="row"><span class="k">Subject code</span><span class="v">${esc(ev.code)}</span></div>` : ""}
+    </div>
+    ${subjectTasksHTML(ev)}`;
+  document.getElementById("modal").classList.add("open");
+}
+document.getElementById("modal").addEventListener("click", (e) => {
+  if (e.target.id === "modal") e.target.classList.remove("open");
+});
+
+/* ================= Loading ================= */
+function loadICS(text, toastMsg) {
+  let parsed;
+  try { parsed = parseICS(text); } catch (e) { parsed = []; }
+  if (!parsed.length) { toast("Couldn't find any classes in that file"); return; }
+  events = parsed;
+  assignColors(events);
+  store.set(STORE_KEY, text);
+  view = "today"; weekOffset = 0;
+  render();
+  if (toastMsg) toast(toastMsg);
+}
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => loadICS(reader.result, "Timetable imported ✓");
+  reader.readAsText(file);
+}
+document.getElementById("fileInput").addEventListener("change", (e) => handleFile(e.target.files[0]));
+document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+document.getElementById("clearBtn").addEventListener("click", () => {
+  store.del(STORE_KEY); events = []; render();
+});
+document.getElementById("segmented").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) { view = b.dataset.view; render(); }
+});
+// Whole-window drag & drop
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && /\.ics$/i.test(f.name)) handleFile(f);
+  else if (f) toast("Please drop a .ics calendar file");
+});
+
+/* ================= Sample data (for trying the app) ================= */
+const SAMPLE_ICS = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Sample//UTS//EN
+BEGIN:VEVENT
+SUMMARY:31266 Introduction to Information Systems\\, Lecture\\, 01
+DTSTART:20260803T090000
+DTEND:20260803T110000
+LOCATION:CB11.00.405
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:31266 Introduction to Information Systems\\, Tutorial\\, 03
+DTSTART:20260805T140000
+DTEND:20260805T160000
+LOCATION:CB06.04.037
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:31251 Data Structures and Algorithms\\, Lecture\\, 01
+DTSTART:20260804T110000
+DTEND:20260804T130000
+LOCATION:CB11.B1.102
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:31251 Data Structures and Algorithms\\, Computer Lab\\, 05
+DTSTART:20260806T100000
+DTEND:20260806T120000
+LOCATION:CB11.06.106
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:31268 Web Systems\\, Lecture\\, 01
+DTSTART:20260804T140000
+DTEND:20260804T160000
+LOCATION:CB05B.03.021
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:31268 Web Systems\\, Workshop\\, 02
+DTSTART:20260807T130000
+DTEND:20260807T150000
+LOCATION:CB11.05.300
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:33130 Mathematics 1\\, Lecture\\, 01
+DTSTART:20260803T130000
+DTEND:20260803T150000
+LOCATION:CB01.05.53
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:33130 Mathematics 1\\, Tutorial\\, 08
+DTSTART:20260807T100000
+DTEND:20260807T110000
+LOCATION:CB04.03.331
+RRULE:FREQ=WEEKLY;UNTIL=20261106T000000
+END:VEVENT
+END:VCALENDAR`;
+
+/* ================= Boot ================= */
+(function init() {
+  loadTasks();
+  const saved = store.get(STORE_KEY);
+  if (saved) {
+    try {
+      events = parseICS(saved);
+      assignColors(events);
+    } catch (e) { events = []; }
+  }
+  render();
+  setInterval(() => {
+    if (events.length && view === "today" && !document.getElementById("modal").classList.contains("open")) render();
+  }, 30000);
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", render);
+})();
+</script>
+</body>
+</html>
