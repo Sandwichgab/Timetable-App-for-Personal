@@ -112,6 +112,19 @@
   .today-date { margin: 22px 4px 4px; font-size: 13.5px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.8px; }
   .today-greeting { margin: 0 4px 18px; font-size: 35px; font-weight: 800; letter-spacing: -0.7px; }
 
+  .sem-strip {
+    background: var(--bg-grouped); border-radius: var(--radius);
+    border: 1px solid var(--glass-border); box-shadow: var(--shadow), var(--glass-edge);
+    padding: 15px 18px 16px; margin-bottom: 16px;
+  }
+  .sem-strip .r1 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+  .sem-strip .sem { font-size: 17px; font-weight: 750; letter-spacing: -0.3px; }
+  .sem-strip .wk { font-size: 15px; font-weight: 750; color: var(--blue); white-space: nowrap; }
+  .sem-strip .bar { height: 6.5px; border-radius: 4px; background: var(--fill); overflow: hidden; }
+  .sem-strip .fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #0a84ff, #5e5ce6); }
+  .sem-strip .r2 { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--label-2); }
+  .sem-strip .r2 .stuvac { color: var(--label); font-weight: 750; }
+
   .next-card {
     border-radius: var(--radius); padding: 20px 20px 18px; margin-bottom: 24px; color: #ffffff;
     box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.3);
@@ -289,8 +302,8 @@
   .onboard { margin-top: 34px; text-align: center; }
   .onboard .app-icon {
     width: 84px; height: 84px; margin: 0 auto 18px; border-radius: 20px;
-    background: linear-gradient(160deg, #0a84ff, #5e5ce6); display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 10px 30px rgba(10,132,255,0.35);
+    background: linear-gradient(160deg, #2c2c2e, #000); display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   }
   .onboard .app-icon svg { width: 44px; height: 44px; }
   .onboard h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
@@ -505,8 +518,9 @@ function expandRRule(rruleStr, dtstart, durationMs, exdates) {
    or activity-code style "31266_SPR_U_1_S, Tut, 02". Make them pretty but stay generic. */
 const ACTIVITY_NAMES = {
   lec: "Lecture", lecture: "Lecture", tut: "Tutorial", tutorial: "Tutorial",
-  wks: "Workshop", workshop: "Workshop", lab: "Lab", cmp: "Computer Lab",
-  prc: "Practical", practical: "Practical", sem: "Seminar", seminar: "Seminar",
+  wks: "Workshop", wrk: "Workshop", ws: "Workshop", wkshp: "Workshop", workshop: "Workshop",
+  lab: "Lab", cmp: "Computer Lab", com: "Computer Lab",
+  prc: "Practical", prac: "Practical", practical: "Practical", sem: "Seminar", seminar: "Seminar",
   stu: "Studio", studio: "Studio", drp: "Drop-in", onl: "Online", cls: "Class",
   fld: "Field Trip", exm: "Exam", test: "Test"
 };
@@ -646,6 +660,101 @@ function startOfWeek(d) { // Monday
 function eventsOn(day) {
   return events.filter(e => sameDay(new Date(e.start), day));
 }
+
+/* ---- Semester tracking (session-aware) ----
+   The .ics can contain several sessions (Autumn + Spring...). Classes are
+   clustered into sessions; only weeks that actually have classes are numbered
+   (Week 1, 2, 3...). Weeks inside a session with no classes = mid-session
+   break. StuVac = the week after the final teaching week (matches UTS key
+   dates, e.g. Spring 2026: teaching ends Fri 23 Oct, StuVac 26–30 Oct),
+   followed by the exam period.                                             */
+const WEEK_MS = 7 * 86400000;
+function allSessions() {
+  if (!events.length) return [];
+  const wkSet = new Set();
+  for (const e of events) wkSet.add(startOfWeek(new Date(e.start)).getTime());
+  const wks = [...wkSet].sort((a, b) => a - b);
+  const clusters = [[wks[0]]];
+  for (let i = 1; i < wks.length; i++) {
+    if (wks[i] - wks[i - 1] > 4 * WEEK_MS) clusters.push([]); // >4 weeks empty = new session
+    clusters[clusters.length - 1].push(wks[i]);
+  }
+  return clusters.map(weeks => {
+    const start = weeks[0], lastTeach = weeks[weeks.length - 1];
+    const stuvac = lastTeach + WEEK_MS;
+    const examsEnd = stuvac + 4 * WEEK_MS; // StuVac week + ~3 exam weeks
+    const m = new Date(start).getMonth() + 1;
+    const long = weeks.length >= 9; // main sessions vs short Summer/Winter ones
+    const name = long ? ((m >= 1 && m <= 5) ? "Autumn" : "Spring")
+                      : ((m >= 5 && m <= 9) ? "Winter" : "Summer");
+    return { weeks, start, lastTeach, stuvac, examsEnd, name, year: new Date(start).getFullYear(), total: weeks.length };
+  });
+}
+function currentSession(now) {
+  const ss = allSessions();
+  if (!ss.length) return null;
+  for (const s of ss) if (now.getTime() < s.examsEnd) return s;
+  return ss[ss.length - 1];
+}
+function weekStatus(date, s) {
+  const mon = startOfWeek(date).getTime();
+  const idx = s.weeks.indexOf(mon);
+  if (idx >= 0) return { kind: "teach", n: idx + 1 };
+  if (mon < s.start) return { kind: "before" };
+  if (mon < s.lastTeach) return { kind: "break" };
+  if (mon === s.stuvac) return { kind: "stuvac" };
+  if (mon < s.examsEnd) return { kind: "exams" };
+  return { kind: "holidays" };
+}
+function weekTag(date) { // short label for header / week view
+  const s = currentSession(new Date());
+  if (!s) return "";
+  const st = weekStatus(date, s);
+  return st.kind === "teach" ? `Week ${st.n}` :
+         st.kind === "break" ? "Break" :
+         st.kind === "stuvac" ? "StuVac" :
+         st.kind === "exams" ? "Exams" : "";
+}
+function semStripHTML(now) {
+  const s = currentSession(now);
+  if (!s) return "";
+  const st = weekStatus(now, s);
+  const shortDate = (d) => new Date(d).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  const sessionEvents = events.filter(e => e.start >= s.start && e.start < s.stuvac);
+  const firstClass = sessionEvents.length ? sessionEvents[0].start : s.start;
+  let lastClass = s.lastTeach;
+  for (const e of sessionEvents) lastClass = Math.max(lastClass, e.end);
+  const daysTo = (ts) => Math.ceil((ts - now.getTime()) / 86400000);
+  const weeksDone = s.weeks.filter(w => w < startOfWeek(now).getTime()).length;
+  let wkLabel, pct, rightTxt;
+  if (st.kind === "before") {
+    wkLabel = "Starting soon"; pct = 0;
+    rightTxt = `First class in ${daysTo(firstClass)} day${daysTo(firstClass) === 1 ? "" : "s"}`;
+  } else if (st.kind === "teach") {
+    wkLabel = `Week ${st.n} of ${s.total}`;
+    pct = Math.min(100, Math.max(3, Math.round(((st.n - 0.5) / s.total) * 100)));
+    rightTxt = `StuVac in ${daysTo(s.stuvac)} days`;
+  } else if (st.kind === "break") {
+    wkLabel = "Mid-session break";
+    pct = Math.round((weeksDone / s.total) * 100);
+    rightTxt = `StuVac in ${daysTo(s.stuvac)} days`;
+  } else if (st.kind === "stuvac") {
+    wkLabel = "StuVac"; pct = 100;
+    rightTxt = `Exams start ${shortDate(s.stuvac + WEEK_MS)} — good luck!`;
+  } else if (st.kind === "exams") {
+    wkLabel = "Exam period"; pct = 100;
+    rightTxt = "You've got this!";
+  } else {
+    wkLabel = "Holidays"; pct = 100;
+    rightTxt = "See you next semester";
+  }
+  return `
+    <div class="sem-strip">
+      <div class="r1"><span class="sem">${s.name} session ${s.year}</span><span class="wk">${wkLabel}</span></div>
+      <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
+      <div class="r2"><span>${shortDate(firstClass)} – ${shortDate(lastClass)}</span><span class="stuvac">${rightTxt}</span></div>
+    </div>`;
+}
 function countdownText(ms) {
   const mins = Math.round(ms / 60000);
   if (mins < 1) return "now";
@@ -665,7 +774,10 @@ function render() {
   if (!has) { renderOnboard(); return; }
   document.getElementById("evCount").textContent = events.length;
   const subjects = new Set(events.map(e => e.code || e.name));
-  document.getElementById("headerSub").textContent = `${subjects.size} subjects`;
+  let sub = `${subjects.size} subjects`;
+  const tag = weekTag(new Date());
+  if (tag) sub += ` · ${tag}`;
+  document.getElementById("headerSub").textContent = sub;
   document.querySelectorAll("#segmented button").forEach(b => b.classList.toggle("active", b.dataset.view === view));
   if (view === "today") renderToday();
   else if (view === "week") renderWeek();
@@ -708,7 +820,8 @@ function renderToday() {
 
   let html = `
     <div class="today-date">${now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}</div>
-    <div class="today-greeting">${greeting(now, todays)}</div>`;
+    <div class="today-greeting">${greeting(now, todays)}</div>
+    ${semStripHTML(now)}`;
 
   if (next) {
     const p = colorOf(next);
@@ -876,7 +989,7 @@ function renderWeek() {
 
   main.innerHTML = `
     <div class="week-nav">
-      <div class="label">${weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : weekOffset === -1 ? "Last week" : label}<small>${label} · ${total} ${total === 1 ? "class" : "classes"}</small></div>
+      <div class="label">${weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : weekOffset === -1 ? "Last week" : label}<small>${label} · ${total} ${total === 1 ? "class" : "classes"}${(() => { const tag = weekTag(monday); return tag ? ` · ${tag}` : ""; })()}</small></div>
       <button class="arrow" id="prevWeek">‹</button>
       ${weekOffset !== 0 ? `<button id="todayWeek">Today</button>` : ""}
       <button class="arrow" id="nextWeek">›</button>
